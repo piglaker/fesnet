@@ -17,7 +17,7 @@ class FesNet(nn.Module):
     """
     
     """
-    def __init__(self, element_dim, step_size=100, hidden_dim=153, nhead=1, num_layers=1):
+    def __init__(self, element_dim, step_size=100, hidden_dim=153, nhead=17, num_layers=6):
         super(FesNet, self).__init__()
         #self.embedding_dim = embedding_dim
         #self.hidden_dim = hidden_dim
@@ -29,10 +29,10 @@ class FesNet(nn.Module):
         self.transformer_decoder = nn.TransformerDecoder(self.decoder_layer, num_layers=num_layers)
 
     
-    def forward(self, structures, sentences):
-        memory = self.transformer_encoder(structures)
+    def forward(self, src, tgt):
+        memory = self.transformer_encoder(src)
 
-        out = self.transformer_decoder(sentences, memory)
+        out = self.transformer_decoder(tgt, memory)
 
         return out
 
