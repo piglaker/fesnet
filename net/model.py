@@ -12,11 +12,12 @@ from torch.nn.utils.rnn import pad_packed_sequence
 import pandas as pd
 import matplotlib.pyplot as plt
 
+
 class FesNet(nn.Module):
     """
     
     """
-    def __init__(self, element_dim, step_size=100, hidden_dim=153, nhead=9, num_layers=1):
+    def __init__(self, element_dim, step_size=100, hidden_dim=153, nhead=1, num_layers=1):
         super(FesNet, self).__init__()
         #self.embedding_dim = embedding_dim
         #self.hidden_dim = hidden_dim
