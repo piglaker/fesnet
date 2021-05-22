@@ -12,12 +12,51 @@ from torch.nn.utils.rnn import pad_packed_sequence
 import pandas as pd
 import matplotlib.pyplot as plt
 
+class LSTM(nn.Module):
+    """
+
+    """
+    def __init__(self, element_dim, hidden_dim, vocab_size, num_layers=1):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+
+        self.num_layers = num_layers
+
+        #self.rnn = nn.LSTM(embedding_dim, hidden_dim, num_layers)
+
+        self.rnn = nn.GRU(element_dim, hidden_dim, num_layers)
+
+        self.fc = nn.Linear(element_dim, vocab_size)
+
+    def forward(self, sentence):
+        lstm_out, _ = self.rnn(sentence, 1, -1)
+        out = F.log_softmax(self.fc(lstm_out.view(len(sentence), -1)), dim=1)
+        return out
+    
+    def predict(self, start, max_length):
+        x = self.word_embeddings(start).unsqueeze(0).view(1, 1, -1)
+
+        #hidden = (torch.zeros(self.num_layers, 1, net.hidden_dim), torch.zeros(self.num_layers, 1, net.hidden_dim))
+        hidden = torch.zeros(self.num_layers, 1, net.hidden_dim)
+        from copy import copy
+        lstm_out = copy(x)
+
+        for i in range(max_length-1):
+            x, hidden = self.rnn(x, hidden)
+            lstm_out = torch.cat([lstm_out, x])
+
+        out = F.log_softmax(self.fc(lstm_out.view(max_length, -1)), dim=1)
+
+        out = torch.argmax(out,dim=1)
+
+        return out.tolist()[:max_length-1]
+
 
 class FesNet(nn.Module):
     """
     
     """
-    def __init__(self, element_dim, step_size=100, hidden_dim=153, nhead=17, num_layers=6):
+    def __init__(self, element_dim, nhead=17, num_layers=6):
         super(FesNet, self).__init__()
         #self.embedding_dim = embedding_dim
         #self.hidden_dim = hidden_dim
@@ -41,38 +80,48 @@ def pretty_time(time, degree=1):
     return str(int(time // 60)) + "m" + str(round(time % 60, degree)) if time > 60 else round(time, degree)
 
 
-def test_train(net, src, tgt, epoch=50):
+def test_train(net, data, epoch=50):
     
     criterion =  nn.MSELoss()
 
-    optimizer = optim.Adam(net.parameters(), lr=0.005)
+    optimizer = optim.Adam(net.parameters(), lr=0.05)
 
     start_time = time.time()
 
     loss_list = []
 
-    print(src.shape, tgt.shape)
+    max_length = 100
 
-    for i in range(epoch):
-        total_loss = 0.
+    length = len(data)
 
-        probs = net(src, tgt)
+    for epoch in range(50):
+        i = 0
+        current_loss = 0
+        while i + max_length < len(data):
+        
+            inputs, targets = data[i:i+max_length], data[i+1:i+1+max_length]
 
-        net.zero_grad()
-  
-        loss = criterion(probs.reshape(-1), tgt.reshape(-1))
+            inputs, targets = torch.unsqueeze(inputs, dim=1), torch.unsqueeze(targets, dim=1)
 
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(net.parameters(), 0.5)
-        optimizer.step()
+            predicts = net(inputs, targets)
 
-        total_loss += loss.item()
-        if (i+1) % 5 == 0:
-            time_past = time.time() - start_time
-            cur_loss = total_loss
-            loss_list.append(cur_loss)
-            total_loss = 0
-            print("epoch: ", i, " time: ", pretty_time(time_past), "loss: ", cur_loss)
+            net.zero_grad()
+        
+            loss = criterion(predicts, targets)
+
+            loss.backward()
+
+            torch.nn.utils.clip_grad_norm_(net.parameters(), 0.5)
+
+            optimizer.step()
+
+            current_loss += loss.item()
+
+            i += max_length
+
+            loss_list.append(loss.item())
+    
+            print("epoch: ", epoch, "current_loss: ", current_loss)
 
     plt.plot(loss_list)
 
@@ -82,7 +131,7 @@ def test_train(net, src, tgt, epoch=50):
 def run():
     fesnet = FesNet(element_dim=153)
 
-    structures = torch.rand(6, 1, 153)
+    structures = torch.rand(101, 1, 153)
     
     sentences = torch.rand(101, 1,153)
 
@@ -90,7 +139,9 @@ def run():
 
     print(out.shape)
 
-    test_train(net=fesnet, src=structures, tgt=sentences)
+    data = torch.rand(200, 153)
+
+    test_train(net=fesnet, data=data)
 
     return
 
