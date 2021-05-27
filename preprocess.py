@@ -1,8 +1,12 @@
+from numpy.lib.type_check import real
+import matplotlib.pyplot as plt
 import sklearn
 import numpy as np
 import scipy.io as scio
 from scipy import sparse
-from sklearn.decomposition import TruncatedSVD
+from sklearn.decomposition import TruncatedSVD, sparse_pca
+from sklearn.decomposition import SparsePCA
+
 
 def load_matfile():
 
@@ -16,30 +20,59 @@ def load_matfile():
 
     column_size = len(stiffness_data[0])
 
+    print(column_size, row_size)
+
     return stiffness_data, mass_data
 
-def svd_process(data):
-    svd = TruncatedSVD(n_components=153, n_iter=7, random_state=20)
-    svd.fit(sparse.csr_matrix(data))
-    return svd.explained_variance_, svd.explained_variance_ratio_, svd.singular_values_
+def svd_process(data, n_components):
+    data = sparse.csr_matrix(data)
 
-def task():
+    svd = TruncatedSVD(n_components=n_components, n_iter=7, random_state=20)
+    
+    svd.fit(data)
+
+    result = svd.transform(data)
+    print(svd.explained_variance_ratio_)
+    print(result.shape)
+    return result
+
+def pca_process(data):
+    pca = SparsePCA()
+    x = pca.fit_transform(data)
+    return pca.explained_variance_ratio_
+
+def task(method='svd'):
     stiffness_data, mass_data = load_matfile()
 
-    stiffness_svd = svd_process(stiffness_data)
+    if method == "svd":
+        process = svd_process
+    elif method == "pca":
+        process = pca_process
+        exit("Warning ! pca not support!")
+    else:
+        exit("Wrong Process Method !")
 
-    mass_svd = svd_process(mass_data)
+    stiffness_svd = process(stiffness_data, 72)
+    mass_svd = process(mass_data, 72)
 
     return stiffness_svd, mass_svd
 
 
 def app():
     
-    stiffness_svd, mass_svd = task()
+    stiffness_svd, mass_svd = task('svd')
 
-    print(stiffness_svd)
+    #print(stiffness_svd)
 
-    print(mass_svd)
+    #print(mass_svd)
+
+    #plt.plot(stiffness_svd)
+
+    #plt.show()
+
+    #plt.plot(mass_svd)
+
+    #plt.show()
 
     return
 
