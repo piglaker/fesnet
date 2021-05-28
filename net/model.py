@@ -12,12 +12,187 @@ from torch.nn.utils.rnn import pad_packed_sequence
 import pandas as pd
 import matplotlib.pyplot as plt
 
+
+
+# utils
+def get_detach_from(hiddens):
+    return [hidden.clone().detach() for hidden in hiddens]
+
+def list_hiddens2torch_tensor(hiddens):
+    re = torch.tensor([])
+    for hidden in hiddens:
+        re = torch.cat([re, hidden], dim=-1)
+    return re
+
+class myGRUCell(nn.Module):
+    def __init__(self, inputs_size, hidden_size):
+        super(myGRUCell, self).__init__()
+        self.inputs_size = inputs_size
+        self.hidden_size = hidden_size
+        self.r_layer_i = nn.Linear(self.inputs_size, self.hidden_size)
+        self.r_layer_h = nn.Linear(self.hidden_size, self.hidden_size)
+        self.z_layer_i = nn.Linear(self.inputs_size, self.hidden_size)
+        self.z_layer_h = nn.Linear(self.hidden_size, self.hidden_size)
+        self.n_layer_i = nn.Linear(self.inputs_size, self.hidden_size)
+        self.n_layer_h = nn.Linear(self.hidden_size, self.hidden_size)
+
+        #self.fc = nn.Linear(hidden_size, target_size)
+
+    def forward(self, input, hidden):
+        #print(input.shape, hidden.shape)
+        r = torch.sigmoid(self.r_layer_i(input) + self.r_layer_h(hidden))
+        z = torch.sigmoid(self.z_layer_i(input) + self.r_layer_h(hidden))
+        n = torch.tanh(self.n_layer_i(input) + torch.mul(r, self.n_layer_h(hidden)))
+        next_hidden = torch.mul((1-z), n) + torch.mul(z, hidden)
+
+        # extra full connect
+        #y = self.fc(next_hidden)
+
+        return next_hidden, next_hidden
+
+#follow just for test model
+
+class Encoder(nn.Module):
+    def __init__(self, input_dim=153, logit_size=100, kernel_wins=[3, 4, 5]):
+        super(Encoder, self).__init__()
+
+        self.convs = nn.ModuleList([nn.Conv1d(input_dim, logit_size, size) for size in kernel_wins])
+
+        self.dropout = nn.Dropout(0.6)
+
+        self.fc = nn.Linear(len(kernel_wins)*logit_size, logit_size)
+
+    def forward(self, x):
+        con_x = [conv(x) for conv in self.convs]
+
+        pool_x = [F.max_pool1d(x.squeeze(-1), x.size()[2]) for x in con_x]
+        
+        fc_x = torch.cat(pool_x, dim=1)
+
+        fc_x = self.dropout(fc_x)
+
+        fc_x = fc_x.squeeze(-1)
+
+        logit = self.fc(fc_x)
+
+        return logit.unsqueeze(0)
+
+#for regress max_acc
+
+class Decoder(nn.Module):
+    def __init__(self, inputs_size=400, matrix_dim=144, hidden_size=100, targets_size=1, logits_size=20, num_layers=2):
+        super(Decoder, self).__init__()
+        self.inputs_size = inputs_size
+        self.matrix_dim = matrix_dim
+        self.hidden_size = hidden_size
+        self.targets_size = targets_size
+        self.logits_size = logits_size
+        self.num_layers = num_layers
+
+        self.encoder = Encoder(input_dim=self.matrix_dim, logit_size=self.logits_size, kernel_wins=[3, 4, 5])
+
+        self.myGRUCell = nn.ModuleList([myGRUCell(inputs_size=self.inputs_size, hidden_size=self.hidden_size)] + \
+        [myGRUCell(inputs_size=self.hidden_size, hidden_size=self.hidden_size) for i in range(num_layers - 1)])
+
+        self.fc = nn.Linear(self.hidden_size, self.targets_size)
+
+    def init_hiddens(self):
+        return [torch.zeros(1, 1, self.hidden_size) for i in range(self.num_layers)]
+
+    def impl(self, y, hiddens):
+        for i, grucell in enumerate(self.myGRUCell):
+            y, hiddens[i] = grucell(y, hiddens[i])
+
+        return y, hiddens
+
+    def forward(self, y_, hiddens_up, features, hiddens_down):
+        
+        logits = features
+
+        inputs = torch.cat([y_, list_hiddens2torch_tensor(hiddens_up), logits], dim=2)
+
+        y_down, hiddens_down = self.impl(inputs, hiddens_down)
+
+        y_down = self.fc(y_down)
+
+        y_down = y_down.squeeze(dim=2)
+
+        return y_down, hiddens_down
+
+class Encoder_GRU(nn.Module):
+    """
+    inputs : L_length, N_batch, H_elementdim
+    """
+    def __init__(self, inputs_size=154, matrix_dim=144, hidden_size=20, targets_size=154, logits_size=10, num_layers=2):
+        super(Encoder_GRU, self).__init__()
+        self.inputs_size = inputs_size + logits_size
+        self.matrix_dim = matrix_dim
+        self.hidden_size = hidden_size
+        self.targets_size = targets_size
+        self.logits_size = logits_size
+        self.num_layers = num_layers
+
+        self.encoder = Encoder(input_dim=self.matrix_dim, logit_size=self.logits_size, kernel_wins=[3, 4, 5])
+
+        self.decoder = Decoder(inputs_size=self.targets_size + 2 * self.hidden_size + self.logits_size, \
+            matrix_dim=self.matrix_dim, \
+                hidden_size=self.hidden_size, targets_size=1, logits_size=self.logits_size, num_layers=2)
+        """
+        decoder inputs_size = targets_size + 2 * hidden_size + logits_size
+        """
+
+        self.myGRUCell = nn.ModuleList([myGRUCell(inputs_size=self.inputs_size, hidden_size=self.hidden_size)] + \
+        [myGRUCell(inputs_size=self.hidden_size, hidden_size=self.hidden_size) for i in range(num_layers - 1)])
+
+        self.fc = nn.Linear(self.hidden_size, self.targets_size)
+    
+    def init_hiddens(self):
+        return [torch.zeros(1, 1, self.hidden_size) for i in range(self.num_layers)]
+
+    def impl(self, y, hiddens):
+        for i, grucell in enumerate(self.myGRUCell):
+            y, hiddens[i] = grucell(y, hiddens[i])
+        return y, hiddens
+
+    def forward(self, inputs, matrix):
+        inputs = inputs.unsqueeze(dim=1)
+
+        hiddens_up = self.init_hiddens()
+
+        hiddens_down = self.decoder.init_hiddens()
+
+        logits = self.encoder(matrix)
+
+        y_up, hiddens_up = self.impl(torch.cat((inputs[0], logits), dim=2), hiddens_up)
+
+        y_up = self.fc(y_up)
+
+        features = self.decoder.encoder(matrix)
+
+        y_down, hiddens_down = self.decoder(y_up.clone().detach(), get_detach_from(hiddens_up), features, hiddens_down)
+
+        for i in range(1, inputs.shape[0]):
+            y_up_semi, hiddens_up = self.impl(torch.cat((inputs[i], logits), dim=2), hiddens_up)
+            y_up_ = self.fc(y_up_semi)
+
+            y_down_, hiddens_down = self.decoder(y_up_.clone().detach(), get_detach_from(hiddens_up), features, hiddens_down)
+            y_down = torch.cat([y_down, y_down_], dim=0)
+
+            y_up = torch.cat([y_up,y_up_], dim=0)
+
+        y_up = y_up.squeeze(dim=2)
+
+        return y_up, y_down
+
+
 class LSTM(nn.Module):
     """
-
+    inputs : L_length, N_batch, H_elementdim
     """
-    def __init__(self, element_dim, hidden_dim, vocab_size, num_layers=1):
+    def __init__(self, element_dim, hidden_dim, output_size, num_layers=2):
         super().__init__()
+        self.element_dim = element_dim
+
         self.hidden_dim = hidden_dim
 
         self.num_layers = num_layers
@@ -26,53 +201,13 @@ class LSTM(nn.Module):
 
         self.rnn = nn.GRU(element_dim, hidden_dim, num_layers)
 
-        self.fc = nn.Linear(element_dim, vocab_size)
+        self.fc = nn.Linear(hidden_dim, output_size)
 
     def forward(self, sentence):
-        lstm_out, _ = self.rnn(sentence, 1, -1)
-        out = F.log_softmax(self.fc(lstm_out.view(len(sentence), -1)), dim=1)
-        return out
-    
-    def predict(self, start, max_length):
-        x = self.word_embeddings(start).unsqueeze(0).view(1, 1, -1)
-
-        #hidden = (torch.zeros(self.num_layers, 1, net.hidden_dim), torch.zeros(self.num_layers, 1, net.hidden_dim))
-        hidden = torch.zeros(self.num_layers, 1, net.hidden_dim)
-        from copy import copy
-        lstm_out = copy(x)
-
-        for i in range(max_length-1):
-            x, hidden = self.rnn(x, hidden)
-            lstm_out = torch.cat([lstm_out, x])
-
-        out = F.log_softmax(self.fc(lstm_out.view(max_length, -1)), dim=1)
-
-        out = torch.argmax(out,dim=1)
-
-        return out.tolist()[:max_length-1]
-
-
-class FesNet(nn.Module):
-    """
-    
-    """
-    def __init__(self, element_dim, nhead=17, num_layers=6):
-        super(FesNet, self).__init__()
-        #self.embedding_dim = embedding_dim
-        #self.hidden_dim = hidden_dim
-
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=element_dim, nhead=nhead)
-        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
-
-        self.decoder_layer = nn.TransformerDecoderLayer(d_model=element_dim, nhead=nhead)
-        self.transformer_decoder = nn.TransformerDecoder(self.decoder_layer, num_layers=num_layers)
-
-    
-    def forward(self, src, tgt):
-        memory = self.transformer_encoder(src)
-
-        out = self.transformer_decoder(tgt, memory)
-
+        lstm_out, _ = self.rnn(sentence.view(len(sentence), 1, -1))
+        
+        out = self.fc(lstm_out.view(len(sentence), -1))
+        
         return out
 
 
