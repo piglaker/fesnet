@@ -1,6 +1,6 @@
 import numpy as np
 import os
-
+import torch
 import matplotlib.pyplot as plt
 
 Super_element_dim = 153
@@ -30,10 +30,7 @@ def transformer(data):
     node_list = range(1, 37, 3)
 
     for node in node_list:
-        #print(node)
         result[node] = earthquake_data
-    
-    #print(result[1])
 
     result = result.T
 
@@ -53,9 +50,61 @@ def task():
 
     print(len(data))
 
-    return transformer(np.array(data))
+    data = transformer(np.array(data))
 
+    earthquake = get_earthquake_data()
+
+    data_acc = torch.tensor(data).to(torch.float32)
+    data_earthquake = torch.tensor(earthquake).reshape(len(earthquake), 1).to(torch.float32)
+    data = torch.cat((data_acc, data_earthquake), dim=1) / 10000
+
+    return data.unsqueeze(dim=1)
+
+def get_from_pickle(size=31):
+    import pickle
+    path_data = "./data/res_dict.pkl"
+    path = "./data/id_data_map.pkl"
+    path_earthquake = "./data/id_wavename_map.pkl"
+
+    res_dict = pickle.load(open(path_data, 'rb'))
+    id_data_map = pickle.load(open(path, 'rb'))
+    id_wavename_map = pickle.load(open(path_earthquake, 'rb'))
+
+    def get_res_(earthquake_id, node_id):
+        return np.array([i[-1] for i in res_dict['@'.join([str(earthquake_id), 'Step-1', 'Node PART-1-1.' + str(node_id), 'A1'])]])[:Super_step_size]
+
+    def get_res(earthquake_id):
+        res = []
+        for i in range(1, Super_element_dim+1):
+            res.append(get_res_(earthquake_id, i))
+        return np.array(res).T
+
+    def extract(a):
+        step = 0.02 / (a[1][0] - a[0][0])
+        return np.array([[a[i][-1] for i in range(0, Super_step_size*int(step), int(step))]]).T
+
+    raw_data = []
+
+    for i in range(size):
+        a = id_data_map[i]
+        step = 0.02 / (a[1][0] - a[0][0])
+        if Super_step_size * int(step) > len(a):
+            continue
+        earthquake = extract(id_data_map[i])
+        
+        tmp = get_res(i)
+
+        raw_data.append(np.concatenate((tmp, earthquake), axis=1))
+
+    return torch.tensor(raw_data).reshape(-1, Super_step_size, 1, Super_element_dim+1)
+
+
+def get_dataset():
+    data = torch.cat((get_from_pickle(), task().reshape(-1, Super_step_size, 1, Super_element_dim+1)), dim=0)
+    return data.to(torch.float32)
 
 if __name__ == "__main__":
-    tmp = task()
-    print(tmp[0].shape)
+    #tmp = task()
+    #tmp = get_from_pickle()
+    tmp = get_dataset()
+    print(tmp.shape)

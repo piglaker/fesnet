@@ -20,7 +20,7 @@ def load_matfile():
 
     column_size = len(stiffness_data[0])
 
-    print(column_size, row_size)
+    #print(column_size, row_size)
 
     return stiffness_data, mass_data
 
@@ -32,8 +32,8 @@ def svd_process(data, n_components):
     svd.fit(data)
 
     result = svd.transform(data)
-    print(svd.explained_variance_ratio_)
-    print(result.shape)
+    #print(svd.explained_variance_ratio_)
+    #print(result.shape)
     return result
 
 def pca_process(data):
