@@ -56,7 +56,7 @@ def task():
 
     data_acc = torch.tensor(data).to(torch.float32)
     data_earthquake = torch.tensor(earthquake).reshape(len(earthquake), 1).to(torch.float32)
-    data = torch.cat((data_acc, data_earthquake), dim=1) / 10000
+    data = torch.cat((data_acc, data_earthquake), dim=1)
 
     return data.unsqueeze(dim=1)
 
