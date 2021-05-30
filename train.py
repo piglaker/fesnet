@@ -16,6 +16,8 @@ from sklearn.model_selection import train_test_split
 
 torch.manual_seed(1)
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 from utils.lib import get_detach_from
 from utils.lib import list_hiddens2torch_tensor
 from utils.lib import pretty_time
@@ -189,7 +191,7 @@ def run():
     
     matrix = load_matrix()
     
-    train(net, train_dataset, matrix, args.epoch, args.lr)
+    train(net.to(device), train_dataset.to(device), matrix, args.epoch, args.lr)
     
     #test()
 
