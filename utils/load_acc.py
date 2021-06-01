@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import time
 import torch
 import matplotlib.pyplot as plt
 
@@ -14,13 +15,13 @@ remote_path = ""
 def Super_get_res(earthquake_id, element_dim=294):
     import pickle
     print("Super Loading  earthquake :" + str(earthquake_id))
-    path = local_path + "/res_dict_" + "0"*(3-len(str(earthquake_id))) +str(earthquake_id) + ".pkl"
+    path = local_path + "res_dict_" + "0"*(3-len(str(earthquake_id))) +str(earthquake_id) + ".pkl"
     data = pickle.load(open(path, 'rb'))
     nodeid_list = [int(i.split("@")[-2].split('.')[-1]) for i in list(data.keys())]
     res = []
     
     for node_id in nodeid_list:
-        index = '@'.join(["00" + str(earthquake_id), "Step-1", "Node PART-1-1."+str(node_id), "A1"])
+        index = '@'.join(["0" * (3 - len(str(earthquake_id))) + str(earthquake_id), "Step-1", "Node PART-1-1."+str(node_id), "A1"])
         step = int(0.02 / (data[index][1][0] - data[index][0][0]))
         res.append([data[index][i][-1] for i in range(0, Super_step_size*int(step), int(step))])
 
@@ -125,6 +126,7 @@ def get_from_pickle(size=31):
 
 def get_dataset():
     #data = torch.cat((get_from_pickle(), task().reshape(-1, Super_step_size, 1, Super_element_dim+1)), dim=0)
+    print(time.strftime("%a %b %d %H:%M:%S %Y", time.localtime()))
     data = get_from_pickle()
     return data.to(torch.float32)
 

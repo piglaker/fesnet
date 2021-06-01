@@ -1,3 +1,4 @@
+import time
 from numpy.lib.type_check import real
 import matplotlib.pyplot as plt
 import sklearn
@@ -10,8 +11,8 @@ from sklearn.decomposition import SparsePCA
 
 def load_matfile():
 
-    Stiffness_dataFile = './data/stiffness.mat'
-    Mass_datafile = './data/mass.mat'
+    Stiffness_dataFile = './data/sanceng_stiffness.mat'
+    Mass_datafile = './data/sanceng_mass.mat'
 
     stiffness_data = scio.loadmat(Stiffness_dataFile)['globalStiffness']
     mass_data = scio.loadmat(Mass_datafile)['globalMass']
@@ -42,6 +43,7 @@ def pca_process(data):
     return pca.explained_variance_ratio_
 
 def task(method='svd'):
+    print(time.strftime("%a %b %d %H:%M:%S %Y", time.localtime()))
     stiffness_data, mass_data = load_matfile()
 
     if method == "svd":
