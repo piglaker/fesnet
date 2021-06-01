@@ -3,10 +3,29 @@ import os
 import torch
 import matplotlib.pyplot as plt
 
-Super_element_dim = 153
+Super_element_dim = 294
 Super_step_size = 1550
 
 earthquake_data_dir = "./data/EL_Centro_NS.txt"
+
+local_path = "./data/"
+remote_path = ""
+
+def Super_get_res(earthquake_id, element_dim=294):
+    import pickle
+    print("Super Loading  earthquake :" + str(earthquake_id))
+    path = local_path + "/res_dict_" + "0"*(3-len(str(earthquake_id))) +str(earthquake_id) + ".pkl"
+    data = pickle.load(open(path, 'rb'))
+    nodeid_list = [int(i.split("@")[-2].split('.')[-1]) for i in list(data.keys())]
+    res = []
+    
+    for node_id in nodeid_list:
+        index = '@'.join(["00" + str(earthquake_id), "Step-1", "Node PART-1-1."+str(node_id), "A1"])
+        step = int(0.02 / (data[index][1][0] - data[index][0][0]))
+        res.append([data[index][i][-1] for i in range(0, Super_step_size*int(step), int(step))])
+
+    return np.array(res).T
+
 
 def get_earthquake_data():
     with open(earthquake_data_dir, 'r') as f:
@@ -62,14 +81,15 @@ def task():
 
 def get_from_pickle(size=31):
     import pickle
-    path_data = "./data/res_dict.pkl"
+    #path_data = "./data/res_dict.pkl"
     path = "./data/id_data_map.pkl"
-    path_earthquake = "./data/id_wavename_map.pkl"
+    #path_earthquake = "./data/id_wavename_map.pkl"
 
-    res_dict = pickle.load(open(path_data, 'rb'))
+    #res_dict = pickle.load(open(path_data, 'rb'))
     id_data_map = pickle.load(open(path, 'rb'))
-    id_wavename_map = pickle.load(open(path_earthquake, 'rb'))
+    #id_wavename_map = pickle.load(open(path_earthquake, 'rb'))
 
+    """
     def get_res_(earthquake_id, node_id):
         return np.array([i[-1] for i in res_dict['@'.join([str(earthquake_id), 'Step-1', 'Node PART-1-1.' + str(node_id), 'A1'])]])[:Super_step_size]
 
@@ -78,6 +98,7 @@ def get_from_pickle(size=31):
         for i in range(1, Super_element_dim+1):
             res.append(get_res_(earthquake_id, i))
         return np.array(res).T
+    """
 
     def extract(a):
         step = 0.02 / (a[1][0] - a[0][0])
@@ -89,10 +110,13 @@ def get_from_pickle(size=31):
         a = id_data_map[i]
         step = 0.02 / (a[1][0] - a[0][0])
         if Super_step_size * int(step) > len(a):
+            print("Earthquake " + str(i) + " is too short, pass ")
             continue
         earthquake = extract(id_data_map[i])
         
-        tmp = get_res(i)
+        tmp = Super_get_res(i)
+
+        print(tmp.shape)
 
         raw_data.append(np.concatenate((tmp, earthquake), axis=1))
 
@@ -100,7 +124,8 @@ def get_from_pickle(size=31):
 
 
 def get_dataset():
-    data = torch.cat((get_from_pickle(), task().reshape(-1, Super_step_size, 1, Super_element_dim+1)), dim=0)
+    #data = torch.cat((get_from_pickle(), task().reshape(-1, Super_step_size, 1, Super_element_dim+1)), dim=0)
+    data = get_from_pickle()
     return data.to(torch.float32)
 
 if __name__ == "__main__":
