@@ -116,7 +116,8 @@ def train(net, train_dataset, matrix, epochs, lr):
             )
 
     print("Training Finished !")
-
+    torch.save(net.state_dict(),"./model_"+str(time.strftime("_%a_%b_%d_%H_%M_%S_%Y", time.localtime()))+".pth")
+    np.savetxt("loss.txt", np.array(loss_list))
     plt.plot(loss_list)
     plt.savefig("Loss" + str(time.strftime("_%a_%b_%d_%H_%M_%S_%Y", time.localtime())) + ".png")
 

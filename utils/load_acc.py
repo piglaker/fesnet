@@ -5,12 +5,16 @@ import torch
 import matplotlib.pyplot as plt
 
 Super_element_dim = 294
-Super_step_size = 1550
+Super_step_size = 1000
+Super_step_t = 0.5 
+Super_hot_start = 1/35
 
 earthquake_data_dir = "./data/EL_Centro_NS.txt"
 
 local_path = "./data/"
 remote_path = ""
+
+black_list = [19,20,21]
 
 def Super_get_res(earthquake_id, element_dim=294):
     import pickle
@@ -22,8 +26,9 @@ def Super_get_res(earthquake_id, element_dim=294):
     
     for node_id in nodeid_list:
         index = '@'.join(["0" * (3 - len(str(earthquake_id))) + str(earthquake_id), "Step-1", "Node PART-1-1."+str(node_id), "A1"])
-        step = int(0.02 / (data[index][1][0] - data[index][0][0]))
-        res.append([data[index][i][-1] for i in range(0, Super_step_size*int(step), int(step))])
+        step = int(Super_step_t / (data[index][1][0] - data[index][0][0]))
+        #print(int(Super_hot_start*len(data[index])), len(data[index]), int(step), data[index][1][0] - data[index][0][0])
+        res.append([data[index][i][-1] for i in range(int(Super_hot_start*len(data[index])), len(data[index])-1, int(step))])
 
     return np.array(res).T
 
@@ -102,36 +107,52 @@ def get_from_pickle(size=31):
     """
 
     def extract(a):
-        step = 0.02 / (a[1][0] - a[0][0])
-        return np.array([[a[i][-1] for i in range(0, Super_step_size*int(step), int(step))]]).T
+        step = int(Super_step_t / (a[1][0] - a[0][0]))
+        #print(a[1][0] - a[0][0])
+        #print(int(Super_hot_start*len(a)), len(a), int(step))
+        return np.array([[a[i][-1] for i in range(int(Super_hot_start*len(a)), len(a), int(step))]]).T
 
     raw_data = []
 
-    for i in range(size):
+    for i in range(31):
         a = id_data_map[i]
-        step = 0.02 / (a[1][0] - a[0][0])
+        step = int(Super_step_t / (a[1][0] - a[0][0]))
+
+        #print(str(i)+" length_step", len(id_data_map[i]), step)
+        """
         if Super_step_size * int(step) > len(a):
             print("Earthquake " + str(i) + " is too short, pass ")
             continue
+
         earthquake = extract(id_data_map[i])
+        """
+        if i in black_list:
+            print(str(i) + " in black list ! pass")
+            continue
         
+
+        earthquake = extract(id_data_map[i])
+
         tmp = Super_get_res(i)
 
-        print(tmp.shape)
+        print(tmp.shape, earthquake.shape)
 
-        raw_data.append(np.concatenate((tmp, earthquake), axis=1))
+        raw_data.append(torch.tensor(np.concatenate((tmp, earthquake), axis=1).reshape(-1, 1, Super_element_dim+1)).to(torch.float32))
 
-    return torch.tensor(raw_data).reshape(-1, Super_step_size, 1, Super_element_dim+1)
+        #raw_data.append(torch.tensor(tmp.reshape(-1, 1, Super_element_dim)).to(torch.float32))
+
+    return raw_data
 
 
 def get_dataset():
     #data = torch.cat((get_from_pickle(), task().reshape(-1, Super_step_size, 1, Super_element_dim+1)), dim=0)
     print(time.strftime("%a %b %d %H:%M:%S %Y", time.localtime()))
     data = get_from_pickle()
-    return data.to(torch.float32)
+    return data
 
 if __name__ == "__main__":
     #tmp = task()
     #tmp = get_from_pickle()
     tmp = get_dataset()
-    print(tmp.shape)
+    print(len(tmp))
+    print("Success !")
