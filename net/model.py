@@ -199,13 +199,13 @@ class Encoder_GRU(nn.Module):
 
         return y_down
 
-class Encoder_GRU_(nn.Module):
+class Encoder_GRU(nn.Module):
     """
     inputs : L_length, N_batch, H_elementdim
     """
     def __init__(self, inputs_size=154, matrix_dim=144, hidden_size=20, targets_size=154, logits_size=10, num_layers=2):
         super(Encoder_GRU, self).__init__()
-        self.inputs_size = inputs_size + logits_size
+        self.inputs_size = inputs_size
         self.matrix_dim = matrix_dim
         self.hidden_size = hidden_size
         self.targets_size = targets_size
@@ -215,21 +215,25 @@ class Encoder_GRU_(nn.Module):
         self.encoder = Encoder(input_dim=self.matrix_dim, logit_size=self.logits_size, kernel_wins=[3, 4, 5])
 
         self.decoder = Decoder(
-            inputs_size=self.targets_size + self.logits_size,
+            inputs_size=self.inputs_size+self.logits_size,
             matrix_dim=self.matrix_dim, 
             hidden_size=self.hidden_size, 
-            targets_size=self.targets_size, 
+            targets_size=self.hidden_size, 
             logits_size=self.logits_size, 
-            num_layers=2
+            num_layers=num_layers
             )
 
-        self.myGRUCell = nn.ModuleList([myGRUCell(inputs_size=self.inputs_size, hidden_size=self.hidden_size)] + \
+        self.myGRUCell = nn.ModuleList([myGRUCell(inputs_size=self.inputs_size+self.logits_size, hidden_size=self.hidden_size)] + \
         [myGRUCell(inputs_size=self.hidden_size, hidden_size=self.hidden_size) for i in range(num_layers - 1)])
 
-        self.myGRUCell2 = nn.ModuleList([myGRUCell(inputs_size=self.inputs_size, hidden_size=self.hidden_size)] + \
+        self.myGRUCell2 = nn.ModuleList([myGRUCell(inputs_size=self.inputs_size+self.logits_size, hidden_size=self.hidden_size)] + \
         [myGRUCell(inputs_size=self.hidden_size, hidden_size=self.hidden_size) for i in range(num_layers - 1)])
 
-        self.fc = nn.Linear(self.hidden_size, self.hidden_size)
+        self.fc = nn.Linear(self.inputs_size, self.hidden_size)
+
+        #self.trans = [nn.Linear(self.inputs_size, self.hidden_size), nn.Linear(self.hidden_size, self.hidden_size)]
+
+        #self.reverse = [nn.Linear(self.hidden_size, self.hidden_size), nn.Linear(self.hidden_size, targets_size)]
 
         self.mlp = nn.Linear(self.hidden_size, self.targets_size)
 
@@ -246,12 +250,12 @@ class Encoder_GRU_(nn.Module):
             y, hiddens[i] = grucell(y, hiddens[i])
         return y, hiddens
 
-    def forward(self, inputs, matrix):
+    def forward(self, inputs, matrix, earthquake):
         inputs = inputs.unsqueeze(dim=1)
 
         hiddens_up = self.init_hiddens()
 
-        hiddens_down = self.decoder.init_hiddens()
+        #hiddens_down = self.decoder.init_hiddens()
 
         logits = self.encoder(matrix)
 
@@ -269,22 +273,29 @@ class Encoder_GRU_(nn.Module):
         
         #y_down = self.mlp(y_down)
 
+        #raw = (torch.cat((inputs[i], logits), dim=2)
+
         for i in range(0, inputs.shape[0]):
+            #x = torch.mm(inputs[i].squeeze(dim=0), torch.ones(self.inputs_size, self.hidden_size)).unsqueeze(dim=1)
+            #x = self.fc(inputs[i])
             y_up_semi, hiddens_up = self.impl(torch.cat((inputs[i], logits), dim=2), hiddens_up)
 
-            y_up_ = self.mlp(y_up_semi)
+            #y_up_ = self.mlp(y_up_semi)
         
         features = self.decoder.encoder(matrix)
 
+        #earthquake = torch.mm(earthquake.squeeze(dim=0), torch.ones(self.inputs_size, self.hidden_size)).unsqueeze(dim=1)
+        #earthquake = self.fc(earthquake)
+        #x = torch.cat((earthquake, features),dim=2)
+
         y_down, hiddens_up = self.decoder(
-            y_up_, 
-            features, 
+            torch.cat((earthquake, features),dim=2),
             hiddens_up
             )
 
-        y_down = self.mlp(y_down)
+        #y_down = self.reverse[-1](self.reverse[0](y_down))
 
-        y = torch.tensor([])
+        #y = torch.tensor([])
 
         #for i in range(0, inputs.shape[0]):
         #    y_down_, hiddens_up = self.decoder(
@@ -297,7 +308,7 @@ class Encoder_GRU_(nn.Module):
             
             #y_up = torch.cat([y_up, y_up_], dim=0)
         
-        return y_down
+        return self.mlp(y_down)
         #return y_down
 
 class LSTM(nn.Module):
