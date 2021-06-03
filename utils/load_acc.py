@@ -8,11 +8,12 @@ Super_element_dim = 294
 Super_step_size = 1000
 Super_step_t = 0.5 
 Super_hot_start = 1/35
+Super_size = 3
 
 earthquake_data_dir = "./data/EL_Centro_NS.txt"
 
 local_path = "./data/"
-remote_path = ""
+remote_path = "./data/FiveLayersFrame/"
 
 black_list = [19,20,21]
 
@@ -24,8 +25,13 @@ def Super_get_res(earthquake_id, element_dim=294):
     nodeid_list = [int(i.split("@")[-2].split('.')[-1]) for i in list(data.keys())]
     res = []
     
+    if local_path == "./data/":
+        job = 1
+    else:
+        job = 2
+
     for node_id in nodeid_list:
-        index = '@'.join(["0" * (3 - len(str(earthquake_id))) + str(earthquake_id), "Step-1", "Node PART-1-1."+str(node_id), "A1"])
+        index = '@'.join(["0" * (3 - len(str(earthquake_id))) + str(earthquake_id), "Step-"+str(job), "Node PART-1-1."+str(node_id), "A1"])
         step = int(Super_step_t / (data[index][1][0] - data[index][0][0]))
         #print(int(Super_hot_start*len(data[index])), len(data[index]), int(step), data[index][1][0] - data[index][0][0])
         res.append([data[index][i][-1] for i in range(int(Super_hot_start*len(data[index])), len(data[index])-1, int(step))])
@@ -85,10 +91,10 @@ def task():
 
     return data.unsqueeze(dim=1)
 
-def get_from_pickle(size=31):
+def get_from_pickle():
     import pickle
     #path_data = "./data/res_dict.pkl"
-    path = "./data/id_data_map.pkl"
+    path = local_path+"id_data_map.pkl"
     #path_earthquake = "./data/id_wavename_map.pkl"
 
     #res_dict = pickle.load(open(path_data, 'rb'))
@@ -114,7 +120,7 @@ def get_from_pickle(size=31):
 
     raw_data = []
 
-    for i in range(31):
+    for i in range(Super_size):
         a = id_data_map[i]
         step = int(Super_step_t / (a[1][0] - a[0][0]))
 
@@ -130,10 +136,9 @@ def get_from_pickle(size=31):
             print(str(i) + " in black list ! pass")
             continue
         
-
         earthquake = extract(id_data_map[i])
 
-        tmp = Super_get_res(i)
+        tmp = Super_get_res(i, element_dim=Super_element_dim)
 
         print(tmp.shape, earthquake.shape)
 
@@ -143,16 +148,32 @@ def get_from_pickle(size=31):
 
     return raw_data
 
-
-def get_dataset():
+def get_dataset(super_element_dim = 294, super_step_size = 1000,super_step_t = 0.5, super_hot_start = 1/35, super_size=31, path="./data/"):
     #data = torch.cat((get_from_pickle(), task().reshape(-1, Super_step_size, 1, Super_element_dim+1)), dim=0)
     print(time.strftime("%a %b %d %H:%M:%S %Y", time.localtime()))
+    
+    global Super_element_dim, Super_step_size, Super_step_t, Super_hot_start, Super_size
+    Super_element_dim, Super_step_size, Super_step_t, Super_hot_start, Super_size = super_element_dim, super_size, super_step_t, super_hot_start, super_size
+    
+    if path != "./data/":
+        global local_path
+        local_path = path
+        #Super_element_dim = 529
+
+    print(Super_size)
     data = get_from_pickle()
     return data
 
 if __name__ == "__main__":
     #tmp = task()
     #tmp = get_from_pickle()
-    tmp = get_dataset()
+    tmp = get_dataset(
+        super_element_dim = 294,
+        super_step_size = 1000,
+        super_step_t = 0.5, 
+        super_hot_start = 1/35, 
+        super_size=1,
+        path = "./data/"
+    )
     print(len(tmp))
     print("Success !")

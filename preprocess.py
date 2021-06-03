@@ -9,10 +9,10 @@ from sklearn.decomposition import TruncatedSVD, sparse_pca
 from sklearn.decomposition import SparsePCA
 
 
-def load_matfile():
+def load_matfile(path="./data/sanceng"):
 
-    Stiffness_dataFile = './data/sanceng_stiffness.mat'
-    Mass_datafile = './data/sanceng_mass.mat'
+    Stiffness_dataFile = path+'_stiffness.mat'
+    Mass_datafile = path+'_mass.mat'
 
     stiffness_data = scio.loadmat(Stiffness_dataFile)['globalStiffness']
     mass_data = scio.loadmat(Mass_datafile)['globalMass']
@@ -42,9 +42,9 @@ def pca_process(data):
     x = pca.fit_transform(data)
     return pca.explained_variance_ratio_
 
-def task(method='svd'):
+def task(method='svd', path='./data/sanceng'):
     print(time.strftime("%a %b %d %H:%M:%S %Y", time.localtime()))
-    stiffness_data, mass_data = load_matfile()
+    stiffness_data, mass_data = load_matfile(path)
 
     if method == "svd":
         process = svd_process
@@ -62,7 +62,7 @@ def task(method='svd'):
 
 def app():
     
-    stiffness_svd, mass_svd = task('svd')
+    stiffness_svd, mass_svd = task('svd', "./data/wuceng")
 
     #print(stiffness_svd)
 
@@ -81,3 +81,4 @@ def app():
 
 if __name__ == "__main__":
     app()
+    print("Done")
